@@ -3,18 +3,15 @@ import classNames from 'classnames';
 import type { CSSMotionProps } from 'rc-motion';
 import ResizeObserver from 'rc-resize-observer';
 import { isDOM } from 'rc-util/lib/Dom/findDOMNode';
-import { getShadowRoot } from 'rc-util/lib/Dom/shadow';
 import useEvent from 'rc-util/lib/hooks/useEvent';
 import useId from 'rc-util/lib/hooks/useId';
 import useLayoutEffect from 'rc-util/lib/hooks/useLayoutEffect';
-import isMobile from 'rc-util/lib/isMobile';
 import * as React from 'react';
+import { useRef } from 'react';
 import type { TriggerContextProps } from './context';
 import TriggerContext from './context';
-import useAction from './hooks/useAction';
 import useAlign from './hooks/useAlign';
 import useWatch from './hooks/useWatch';
-import useWinClick from './hooks/useWinClick';
 import type {
   ActionType,
   AlignType,
@@ -27,6 +24,7 @@ import type {
 import Popup from './Popup';
 import TriggerWrapper from './TriggerWrapper';
 import { getAlignPopupClassName, getMotion } from './util';
+import { fillRef } from 'rc-util/lib/ref';
 
 export type {
   BuildInPlacements,
@@ -48,8 +46,6 @@ export interface TriggerRef {
 export interface TriggerProps {
   children: React.ReactElement;
   action?: ActionType | ActionType[];
-  showAction?: ActionType[];
-  hideAction?: ActionType[];
 
   prefixCls?: string;
 
@@ -125,6 +121,7 @@ export interface TriggerProps {
    */
   getTriggerDOMNode?: (node: React.ReactInstance) => HTMLElement;
 
+  getMountRoot: () => HTMLElement | null;
   // // ========================== Mobile ==========================
   // /** @private Bump fixed position at bottom in mobile.
   //  * This is internal usage currently, do not use in your prod */
@@ -139,10 +136,6 @@ export function generateTrigger(
       prefixCls = 'rc-trigger-popup',
       children,
 
-      // Action
-      action = 'hover',
-      showAction,
-      hideAction,
 
       // Open
       popupVisible,
@@ -154,12 +147,8 @@ export function generateTrigger(
       mouseEnterDelay,
       mouseLeaveDelay = 0.1,
 
-      focusDelay,
-      blurDelay,
-
       // Mask
       mask,
-      maskClosable = true,
 
       // Portal
       getPopupContainer,
@@ -196,21 +185,15 @@ export function generateTrigger(
       maskAnimation,
 
       // Deprecated
-      className,
+
 
       // Private
       getTriggerDOMNode,
-
-      ...restProps
+      getMountRoot,
     } = props;
 
     const mergedAutoDestroy = autoDestroy || destroyPopupOnHide || false;
 
-    // =========================== Mobile ===========================
-    const [mobile, setMobile] = React.useState(false);
-    useLayoutEffect(() => {
-      setMobile(isMobile());
-    }, []);
 
     // ========================== Context ===========================
     const subPopupElements = React.useRef<Record<string, HTMLElement>>({});
@@ -250,24 +233,13 @@ export function generateTrigger(
 
     // ========================== Children ==========================
     const child = React.Children.only(children) as React.ReactElement;
+
     const originChildProps = child?.props || {};
-    const cloneProps: typeof originChildProps = {};
+    //    const cloneProps: typeof originChildProps = {};
 
-    const inPopupOrChild = useEvent((ele: any) => {
-      const childDOM = targetEle;
+    const triggerDom = useRef<HTMLElement | null>();
 
-      return (
-        childDOM?.contains(ele) ||
-        getShadowRoot(childDOM)?.host === ele ||
-        ele === childDOM ||
-        popupEle?.contains(ele) ||
-        getShadowRoot(popupEle)?.host === ele ||
-        ele === popupEle ||
-        Object.values(subPopupElements.current).some(
-          (subPopupEle) => subPopupEle?.contains(ele) || ele === subPopupEle,
-        )
-      );
-    });
+    fillRef(triggerDom, getMountRoot ? getMountRoot() : null);
 
     // =========================== Motion ===========================
     const mergePopupMotion = getMotion(
@@ -347,13 +319,7 @@ export function generateTrigger(
       React.useState<VoidFunction>(null);
 
     // =========================== Align ============================
-    const [mousePos, setMousePos] = React.useState<[x: number, y: number]>([
-      0, 0,
-    ]);
 
-    const setMousePosByEvent = (event: React.MouseEvent) => {
-      setMousePos([event.clientX, event.clientY]);
-    };
 
     const [
       ready,
@@ -370,7 +336,7 @@ export function generateTrigger(
     ] = useAlign(
       mergedOpen,
       popupEle,
-      alignPoint ? mousePos : targetEle,
+      targetEle,
       popupPlacement,
       builtinPlacements,
       popupAlign,
@@ -387,7 +353,7 @@ export function generateTrigger(
 
     useLayoutEffect(() => {
       triggerAlign();
-    }, [mousePos, popupPlacement]);
+    }, [popupPlacement]);
 
     // When no builtinPlacements and popupAlign changed
     useLayoutEffect(() => {
@@ -452,158 +418,70 @@ export function generateTrigger(
       }
     };
 
-    // =========================== Action ===========================
-    const [showActions, hideActions] = useAction(
-      mobile,
-      action,
-      showAction,
-      hideAction,
-    );
 
     // Util wrapper for trigger action
     const wrapperAction = (
+      node: HTMLElement,
       eventName: string,
-      nextOpen: boolean,
-      delay?: number,
-      preEvent?: (event: any) => void,
+      HandleEvent?: (event: any) => void,
     ) => {
-      cloneProps[eventName] = (event: any, ...args: any[]) => {
-        preEvent?.(event);
-        triggerOpen(nextOpen, delay);
+      node.addEventListener(eventName, HandleEvent);
 
-        // Pass to origin
-        originChildProps[eventName]?.(event, ...args);
-      };
     };
 
-    // ======================= Action: Click ========================
-    const clickToShow = showActions.has('click');
-    const clickToHide =
-      hideActions.has('click') || hideActions.has('contextMenu');
-
-    if (clickToShow || clickToHide) {
-      cloneProps.onClick = (
-        event: React.MouseEvent<HTMLElement>,
-        ...args: any[]
-      ) => {
-        if (openRef.current && clickToHide) {
-          triggerOpen(false);
-        } else if (!openRef.current && clickToShow) {
-          setMousePosByEvent(event);
-          triggerOpen(true);
-        }
-
-        // Pass to origin
-        originChildProps.onClick?.(event, ...args);
+    const removeAction = (
+      node: HTMLElement,
+      eventName: string,
+      HandleEvent?: (event: any) => void,
+    ) => {
+      node.removeEventListener(eventName, HandleEvent);
+    };
+    const onPopupMouseEnter: VoidFunction = () => {
+      console.log('cbl onPopupMouseEnter')
+      triggerOpen(true, mouseEnterDelay);
+    };
+    const onPopupMouseLeave: VoidFunction = () => {
+      console.log('cbl onPopupMouseLeave')
+      triggerOpen(false, mouseLeaveDelay);
+    };
+    React.useEffect(() => {
+      console.log('cbl one effect', triggerDom.current);
+      const handleMouseEnter = () => {
+        console.log('cbl one enter');
+        onPopupMouseEnter();
       };
-    }
-
-    // Click to hide is special action since click popup element should not hide
-    useWinClick(
-      mergedOpen,
-      clickToHide,
-      targetEle,
-      popupEle,
-      mask,
-      maskClosable,
-      inPopupOrChild,
-      triggerOpen,
-    );
-
-    // ======================= Action: Hover ========================
-    const hoverToShow = showActions.has('hover');
-    const hoverToHide = hideActions.has('hover');
-
-    let onPopupMouseEnter: VoidFunction;
-    let onPopupMouseLeave: VoidFunction;
-
-    if (hoverToShow) {
-      wrapperAction('onMouseEnter', true, mouseEnterDelay, (event) => {
-        setMousePosByEvent(event);
-      });
-      onPopupMouseEnter = () => {
-        triggerOpen(true, mouseEnterDelay);
+      const handleMouseLeave = () => {
+        console.log('cbl one leave');
+        onPopupMouseLeave();
       };
+      if (triggerDom.current) {
 
-      // Align Point
-      if (alignPoint) {
-        cloneProps.onMouseMove = (event: React.MouseEvent) => {
-          // setMousePosByEvent(event);
-          originChildProps.onMouseMove?.(event);
-        };
+        wrapperAction(triggerDom.current, 'mouseenter', handleMouseEnter);
+        wrapperAction(triggerDom.current, 'mouseleave', handleMouseLeave);
+
       }
-    }
 
-    if (hoverToHide) {
-      wrapperAction('onMouseLeave', false, mouseLeaveDelay);
-      onPopupMouseLeave = () => {
-        triggerOpen(false, mouseLeaveDelay);
-      };
-    }
+      return () => {
 
-    // ======================= Action: Focus ========================
-    if (showActions.has('focus')) {
-      wrapperAction('onFocus', true, focusDelay);
-    }
-
-    if (hideActions.has('focus')) {
-      wrapperAction('onBlur', false, blurDelay);
-    }
-
-    // ==================== Action: ContextMenu =====================
-    if (showActions.has('contextMenu')) {
-      cloneProps.onContextMenu = (event: React.MouseEvent, ...args: any[]) => {
-        if (openRef.current && hideActions.has('contextMenu')) {
-          triggerOpen(false);
-        } else {
-          setMousePosByEvent(event);
-          triggerOpen(true);
+        console.log('cbl one return');
+        if (triggerDom.current) {
+          removeAction(triggerDom.current, 'mouseenter', handleMouseEnter);
+          removeAction(triggerDom.current, 'mouseleave', handleMouseLeave);
         }
-
-        event.preventDefault();
-
-        // Pass to origin
-        originChildProps.onContextMenu?.(event, ...args);
       };
-    }
+
+    }, [triggerDom.current]);
+
 
     // ========================= ClassName ==========================
-    if (className) {
-      cloneProps.className = classNames(originChildProps.className, className);
-    }
+    /*  if (className) {
+        cloneProps.className = classNames(originChildProps.className, className);
+      }*/
 
-    // =========================== Render ===========================
-    const mergedChildrenProps = {
-      ...originChildProps,
-      ...cloneProps,
-    };
-
-    // Pass props into cloneProps for nest usage
-    const passedProps: Record<string, any> = {};
-    const passedEventList = [
-      'onContextMenu',
-      'onClick',
-      'onMouseDown',
-      'onTouchStart',
-      'onMouseEnter',
-      'onMouseLeave',
-      'onFocus',
-      'onBlur',
-    ];
-
-    passedEventList.forEach((eventName) => {
-      if (restProps[eventName]) {
-        passedProps[eventName] = (...args: any[]) => {
-          mergedChildrenProps[eventName]?.(...args);
-          restProps[eventName](...args);
-        };
-      }
-    });
 
     // Child Node
     const triggerNode = React.cloneElement(child, {
-      ...mergedChildrenProps,
-      ...passedProps,
+      ...originChildProps,
     });
 
     const arrowPos: ArrowPos = {
@@ -617,7 +495,6 @@ export function generateTrigger(
         ...(arrow !== true ? arrow : {}),
       }
       : null;
-
     // Render
     return (
       <>

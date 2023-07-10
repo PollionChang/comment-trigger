@@ -1,6 +1,6 @@
 {
-  "name": "@rc-component/trigger",
-  "version": "1.14.1",
+  "name": "comment-trigger",
+  "version": "0.0.1",
   "description": "base abstract trigger component for react",
   "engines": {
     "node": ">=8.x"
@@ -61,6 +61,7 @@
   },
   "dependencies": {
     "@babel/runtime": "^7.18.3",
+    "@byted/hooks": "^2.61.0",
     "@rc-component/portal": "^1.1.0",
     "classnames": "^2.3.2",
     "rc-align": "^4.0.0",
