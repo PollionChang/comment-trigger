@@ -45,9 +45,9 @@ export default () => {
           </div>
         }
         // popupVisible
-        popupStyle={{ boxShadow: '0 0 5px red' }}
         popupAlign={{
           points: ['tl', 'tr'],
+          offset: [-40, 0],
           overflow: {
             adjustX: true,
             adjustY: true,

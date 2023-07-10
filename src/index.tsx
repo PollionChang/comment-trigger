@@ -294,7 +294,7 @@ export function generateTrigger(
 
     const triggerOpen = (nextOpen: boolean, delay = 0) => {
       clearDelay();
-
+      console.log('chang triggerOpen',nextOpen,delay)
       if (delay === 0) {
         internalTriggerOpen(nextOpen);
       } else {
@@ -437,22 +437,23 @@ export function generateTrigger(
       node.removeEventListener(eventName, HandleEvent);
     };
     const onPopupMouseEnter: VoidFunction = () => {
-      console.log('cbl onPopupMouseEnter')
+      console.log('chang in pop')
       triggerOpen(true, mouseEnterDelay);
     };
     const onPopupMouseLeave: VoidFunction = () => {
-      console.log('cbl onPopupMouseLeave')
+      console.log('chang out pop')
       triggerOpen(false, mouseLeaveDelay);
     };
     React.useEffect(() => {
-      console.log('cbl one effect', triggerDom.current);
-      const handleMouseEnter = () => {
-        console.log('cbl one enter');
-        onPopupMouseEnter();
+      const handleMouseEnter = (event:any) => {
+        console.log('chang in')
+        event.stopPropagation()
+        triggerOpen(true, mouseEnterDelay);
       };
-      const handleMouseLeave = () => {
-        console.log('cbl one leave');
-        onPopupMouseLeave();
+      const handleMouseLeave = (event:any) => {
+        console.log('chang out');
+        event.stopPropagation()
+        triggerOpen(false, mouseLeaveDelay);
       };
       if (triggerDom.current) {
 
