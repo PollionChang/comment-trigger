@@ -25,6 +25,8 @@ import TriggerWrapper from './TriggerWrapper';
 import { getAlignPopupClassName, getMotion } from './util';
 import { fillRef } from 'rc-util/lib/ref';
 import { useEventListener } from '@byted/hooks';
+import useWinClick from './hooks/useWinClick';
+import { getShadowRoot } from 'rc-util/lib/Dom/shadow';
 
 export type {
   BuildInPlacements,
@@ -149,7 +151,7 @@ export function generateTrigger(
 
       // Mask
       mask,
-
+      maskClosable = true,
       // Portal
       getPopupContainer,
       forceRender,
@@ -237,6 +239,24 @@ export function generateTrigger(
     const triggerDom = React.useRef<HTMLElement | null>();
 
     fillRef(triggerDom, getMountRoot ? getMountRoot() : null);
+
+
+
+    const inPopupOrChild = useEvent((ele: any) => {
+      const childDOM = targetEle;
+
+      return (
+        childDOM?.contains(ele) ||
+        getShadowRoot(childDOM)?.host === ele ||
+        ele === childDOM ||
+        popupEle?.contains(ele) ||
+        getShadowRoot(popupEle)?.host === ele ||
+        ele === popupEle ||
+        Object.values(subPopupElements.current).some(
+          (subPopupEle) => subPopupEle?.contains(ele) || ele === subPopupEle,
+        )
+      );
+    });
 
     // =========================== Motion ===========================
     const mergePopupMotion = getMotion(
@@ -413,7 +433,18 @@ export function generateTrigger(
         setTargetHeight(rect.height);
       }
     };
-
+    const clickToHide=false
+    // Click to hide is special action since click popup element should not hide
+    useWinClick(
+      mergedOpen,
+      clickToHide,
+      targetEle,
+      popupEle,
+      mask,
+      maskClosable,
+      inPopupOrChild,
+      triggerOpen,
+    );
 
     const onPopupMouseEnter: VoidFunction = () => {
       isInPopupRef.current = true;
