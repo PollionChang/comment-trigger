@@ -1,6 +1,6 @@
 {
   "name": "web-comment-rc-trigger",
-  "version": "1.0.0",
+  "version": "0.0.0",
   "description": "base abstract trigger component for react",
   "engines": {
     "node": ">=8.x"
@@ -26,7 +26,7 @@
     "start": "dumi dev",
     "build": "dumi build",
     "compile": "father build && lessc assets/index.less assets/index.css",
-    "prepublishOnly": "npm run compile && np --yolo --no-publish --registry=http://bnpm.byted.org",
+    "prepublishOnly": "npm run compile && np --yolo --no-publish  --no-yarn --registry=http://bnpm.byted.org",
     "lint": "eslint src/ docs/examples/ --ext .tsx,.ts,.jsx,.js",
     "test": "rc-test",
     "coverage": "rc-test --coverage",
