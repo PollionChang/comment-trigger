@@ -7,7 +7,6 @@ import useEvent from 'rc-util/lib/hooks/useEvent';
 import useId from 'rc-util/lib/hooks/useId';
 import useLayoutEffect from 'rc-util/lib/hooks/useLayoutEffect';
 import * as React from 'react';
-import { useRef } from 'react';
 import type { TriggerContextProps } from './context';
 import TriggerContext from './context';
 import useAlign from './hooks/useAlign';
@@ -25,6 +24,7 @@ import Popup from './Popup';
 import TriggerWrapper from './TriggerWrapper';
 import { getAlignPopupClassName, getMotion } from './util';
 import { fillRef } from 'rc-util/lib/ref';
+import { useEventListener } from '@byted/hooks';
 
 export type {
   BuildInPlacements,
@@ -121,7 +121,7 @@ export interface TriggerProps {
    */
   getTriggerDOMNode?: (node: React.ReactInstance) => HTMLElement;
 
-  getMountRoot: () => HTMLElement | null;
+  getMountRoot?: () => HTMLElement | null;
   // // ========================== Mobile ==========================
   // /** @private Bump fixed position at bottom in mobile.
   //  * This is internal usage currently, do not use in your prod */
@@ -192,6 +192,8 @@ export function generateTrigger(
       getMountRoot,
     } = props;
 
+
+    const isInPopupRef = React.useRef(false);
     const mergedAutoDestroy = autoDestroy || destroyPopupOnHide || false;
 
 
@@ -231,13 +233,8 @@ export function generateTrigger(
       }
     });
 
-    // ========================== Children ==========================
-    const child = React.Children.only(children) as React.ReactElement;
 
-    const originChildProps = child?.props || {};
-    //    const cloneProps: typeof originChildProps = {};
-
-    const triggerDom = useRef<HTMLElement | null>();
+    const triggerDom = React.useRef<HTMLElement | null>();
 
     fillRef(triggerDom, getMountRoot ? getMountRoot() : null);
 
@@ -294,7 +291,6 @@ export function generateTrigger(
 
     const triggerOpen = (nextOpen: boolean, delay = 0) => {
       clearDelay();
-      console.log('chang triggerOpen',nextOpen,delay)
       if (delay === 0) {
         internalTriggerOpen(nextOpen);
       } else {
@@ -419,71 +415,29 @@ export function generateTrigger(
     };
 
 
-    // Util wrapper for trigger action
-    const wrapperAction = (
-      node: HTMLElement,
-      eventName: string,
-      HandleEvent?: (event: any) => void,
-    ) => {
-      node.addEventListener(eventName, HandleEvent);
-
-    };
-
-    const removeAction = (
-      node: HTMLElement,
-      eventName: string,
-      HandleEvent?: (event: any) => void,
-    ) => {
-      node.removeEventListener(eventName, HandleEvent);
-    };
     const onPopupMouseEnter: VoidFunction = () => {
-      console.log('chang in pop')
+      isInPopupRef.current = true;
       triggerOpen(true, mouseEnterDelay);
     };
     const onPopupMouseLeave: VoidFunction = () => {
-      console.log('chang out pop')
+      isInPopupRef.current = false;
       triggerOpen(false, mouseLeaveDelay);
     };
-    React.useEffect(() => {
-      const handleMouseEnter = (event:any) => {
-        console.log('chang in')
-        event.stopPropagation()
-        triggerOpen(true, mouseEnterDelay);
-      };
-      const handleMouseLeave = (event:any) => {
-        console.log('chang out');
-        event.stopPropagation()
-        triggerOpen(false, mouseLeaveDelay);
-      };
-      if (triggerDom.current) {
-
-        wrapperAction(triggerDom.current, 'mouseenter', handleMouseEnter);
-        wrapperAction(triggerDom.current, 'mouseleave', handleMouseLeave);
-
-      }
-
-      return () => {
-
-        console.log('cbl one return');
-        if (triggerDom.current) {
-          removeAction(triggerDom.current, 'mouseenter', handleMouseEnter);
-          removeAction(triggerDom.current, 'mouseleave', handleMouseLeave);
-        }
-      };
-
-    }, [triggerDom.current]);
 
 
-    // ========================= ClassName ==========================
-    /*  if (className) {
-        cloneProps.className = classNames(originChildProps.className, className);
-      }*/
-
-
-    // Child Node
-    const triggerNode = React.cloneElement(child, {
-      ...originChildProps,
+    useEventListener('mouseenter', () => {
+      triggerOpen(true, mouseEnterDelay);
+    }, {
+      target: triggerDom.current,
     });
+    useEventListener('mouseleave', () => {
+      if (!isInPopupRef.current) {
+        triggerOpen(false, mouseLeaveDelay);
+      }
+    }, {
+      target: triggerDom.current,
+    });
+
 
     const arrowPos: ArrowPos = {
       x: arrowX,
@@ -505,7 +459,7 @@ export function generateTrigger(
           onResize={onTargetResize}
         >
           <TriggerWrapper getTriggerDOMNode={getTriggerDOMNode}>
-            {triggerNode}
+            {children}
           </TriggerWrapper>
         </ResizeObserver>
         <TriggerContext.Provider value={context}>
